@@ -1,0 +1,7 @@
+{
+  "asset": "btc",
+  "display_name": "BTC",
+  "symbol": "BTCUSDT",
+  "coinalyze_symbols": ["BTCUSDT_PERP.A", "BTCUSDT.6", "BTCUSDT_PERP.3"],
+  "notion_parent_id": "345b7f28c0448048b7dce766dada1c29"
+}

@@ -1,0 +1,7 @@
+{
+  "asset": "eth",
+  "display_name": "ETH",
+  "symbol": "ETHUSDT",
+  "coinalyze_symbols": ["ETHUSDT_PERP.A", "ETHUSDT.6", "ETHUSDT_PERP.3"],
+  "notion_parent_id": "345b7f28c044805db2b9ea60a67be096"
+}
