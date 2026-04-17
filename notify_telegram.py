@@ -3,14 +3,20 @@
 Usage: python3 notify_telegram.py "<message text>"
 
 Requires env vars:
-  TELEGRAM_BOT_TOKEN  Bot token from @BotFather
-  TELEGRAM_CHAT_ID    Target chat ID (numeric). DM your bot once, then
-                      check https://api.telegram.org/bot<TOKEN>/getUpdates
-                      or message @userinfobot to find it.
+  TELEGRAM_BOT_TOKEN         Bot token from @BotFather
+  TELEGRAM_CHAT_ID_<ASSET>   Per-asset chat ID, selected via $ASSET env
+                             (e.g. TELEGRAM_CHAT_ID_BTC if ASSET=btc).
+                             Preferred when ASSET is set — lets a single
+                             cloud session route BTC and ETH to different
+                             channels without shell-state gymnastics.
+  TELEGRAM_CHAT_ID           Fallback chat ID if the per-asset lookup
+                             misses, or the only var needed when ASSET
+                             is unset (single-asset invocations).
 
 Behavior:
-  - If either env var is unset, exits 0 silently (no-op). This keeps the
-    pipeline green on environments that haven't configured Telegram yet.
+  - If the resolved chat ID or bot token is unset, exits 0 silently
+    (no-op). This keeps the pipeline green on environments that haven't
+    configured Telegram yet.
   - Retries once after 10s on transient failures (connection error,
     timeout, HTTP 5xx, HTTP 429). Permanent errors (HTTP 4xx other than
     429) fail immediately — retry won't help if the token or chat_id
@@ -24,6 +30,17 @@ import sys
 import time
 
 import requests
+
+
+def _resolve_chat_id() -> str:
+    """Prefer the per-asset chat ID (TELEGRAM_CHAT_ID_<ASSET>) when ASSET
+    is set. Fall back to TELEGRAM_CHAT_ID for legacy / single-asset runs."""
+    asset = os.environ.get("ASSET", "").strip().upper()
+    if asset:
+        per_asset = os.environ.get(f"TELEGRAM_CHAT_ID_{asset}", "").strip()
+        if per_asset:
+            return per_asset
+    return os.environ.get("TELEGRAM_CHAT_ID", "").strip()
 
 API_BASE = "https://api.telegram.org"
 TIMEOUT = 10
@@ -59,10 +76,12 @@ def _send_once(token: str, chat_id: str, text: str) -> tuple[bool, str]:
 
 def main():
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+    chat_id = _resolve_chat_id()
 
     if not token or not chat_id:
-        print("telegram not configured (TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID unset); skipping")
+        asset = os.environ.get("ASSET", "").strip().upper()
+        detail = f"TELEGRAM_CHAT_ID_{asset} / TELEGRAM_CHAT_ID" if asset else "TELEGRAM_CHAT_ID"
+        print(f"telegram not configured (TELEGRAM_BOT_TOKEN or {detail} unset); skipping")
         sys.exit(0)
 
     if len(sys.argv) != 2:

@@ -89,33 +89,21 @@ If the script exits with a non-zero code, capture stderr. In single-asset mode r
 
 ## Step 5 — Notify Telegram (non-fatal)
 
-Telegram expects `TELEGRAM_BOT_TOKEN` (shared across assets — one bot) and `TELEGRAM_CHAT_ID` (asset-specific channel). How it's resolved depends on the invocation mode:
-
-**Single-asset mode (`btc` or `eth`):** `TELEGRAM_CHAT_ID` is set directly by the Routines trigger env. No extra work — just fire the notification.
-
-**`all` mode:** the Routines trigger sets two separate chat-id env vars, and the skill exports the right one before each asset's notification:
-
-```bash
-# Before BTC's notification:
-export TELEGRAM_CHAT_ID="$TELEGRAM_CHAT_ID_BTC"
-# Before ETH's notification:
-export TELEGRAM_CHAT_ID="$TELEGRAM_CHAT_ID_ETH"
-```
-
-Then fire the notification:
+Fire the notification. `notify_telegram.py` reads `ASSET` and picks the right chat ID automatically — no shell-env juggling required, which would not survive across separate Bash tool calls in the cloud runtime anyway:
 
 ```bash
 python3 notify_telegram.py "$(echo $ASSET | tr a-z A-Z) Swings briefing published $(date +%Y-%m-%d\ %H:%M)
 [View on Notion](<notion_url>)"
 ```
 
-Substitute `<notion_url>` with the URL printed by `publish_notion.py`.
+Substitute `<notion_url>` with the URL printed by `publish_notion.py`. Make sure `ASSET` is still exported in this Bash call; if not, prefix inline: `ASSET=<asset> python3 notify_telegram.py "..."`.
 
 Required env vars:
-- Single-asset mode: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
-- `all` mode: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID_BTC`, `TELEGRAM_CHAT_ID_ETH`.
+- `TELEGRAM_BOT_TOKEN` — shared across assets (one bot).
+- `TELEGRAM_CHAT_ID_BTC` and/or `TELEGRAM_CHAT_ID_ETH` — per-asset chat IDs. The script resolves the right one from `ASSET`.
+- Legacy fallback: `TELEGRAM_CHAT_ID` — used only if the per-asset var is missing. Good for one-off single-asset runs.
 
-The script is idempotent: if either `TELEGRAM_BOT_TOKEN` or the resolved `TELEGRAM_CHAT_ID` is unset, it exits 0 silently. If the API call fails, it exits non-zero — treat that as non-fatal. Do not fail the whole pipeline on a notification error.
+The script is idempotent: if the resolved chat ID or bot token is unset, it exits 0 silently with a diagnostic line telling you which env vars it looked at. If the API call fails, it exits non-zero — treat that as non-fatal. Do not fail the whole pipeline on a notification error.
 
 ## Step 6 — Confirm
 
