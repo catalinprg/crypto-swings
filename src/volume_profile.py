@@ -43,7 +43,7 @@ class NakedPOC:
     period_start_ts: int
     period_end_ts: int
     is_naked: bool
-    distance_atr: float | None   # abs distance from current price in ATR units
+    distance_atr: float   # abs distance from current price in ATR units (always populated)
 
 
 def compute_profile(bars: list[OHLC], atr_14: float) -> VolumeProfile:
@@ -58,7 +58,7 @@ def compute_profile(bars: list[OHLC], atr_14: float) -> VolumeProfile:
     mass = [0.0] * n_bins
     for b in bars:
         span = max(1e-12, b.high - b.low)
-        vpp = b.volume / span  # volume per unit price
+        vpp = b.volume / span  # uniform distribution across bar range — approximation; tick data not available
         # Contribute to every bin overlapped by [b.low, b.high]
         for i in range(n_bins):
             bin_lo = lo + i * bw
@@ -77,6 +77,8 @@ def compute_profile(bars: list[OHLC], atr_14: float) -> VolumeProfile:
     while acc < target and (lo_i > 0 or hi_i < n_bins - 1):
         left = mass[lo_i - 1] if lo_i > 0 else -1
         right = mass[hi_i + 1] if hi_i < n_bins - 1 else -1
+        # Ties go right (expand VAH before VAL): intentional upward bias,
+        # consistent with CME/TT convention for symmetric cases.
         if right >= left:
             hi_i += 1
             acc += mass[hi_i]
@@ -90,6 +92,8 @@ def compute_profile(bars: list[OHLC], atr_14: float) -> VolumeProfile:
         mean = sum(mass) / len(mass)
         var = sum((m - mean) ** 2 for m in mass) / len(mass)
         sd = math.sqrt(var) if var > 0 else 0.0
+        # HVN at z > 1.5 — only clear peaks qualify (right-skewed distributions need higher bar).
+        # LVN at z < -1.0 — looser threshold; rejection zones are common, false positives are cheap.
         hvn = [lo + (i + 0.5) * bw for i, m in enumerate(mass) if sd > 0 and (m - mean) / sd > 1.5]
         lvn = [lo + (i + 0.5) * bw for i, m in enumerate(mass) if sd > 0 and (m - mean) / sd < -1.0]
     else:

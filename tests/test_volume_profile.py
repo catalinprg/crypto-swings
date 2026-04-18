@@ -25,8 +25,9 @@ def test_naked_poc_flagged_when_price_never_returned():
     day2 = [_b(10 + i, 110, 106, 10.0)    for i in range(10)]
     all_bars = day1 + day2
     pocs = compute_naked_pocs(all_bars, period_ms=10, lookback=2, atr_14=2.0)
-    # At least one naked POC
-    assert any(p.is_naked for p in pocs)
+    # The oldest period (period_start_ts < the day2 window start) should be naked.
+    day1_poc = min(pocs, key=lambda p: p.period_start_ts)
+    assert day1_poc.is_naked
 
 # --- Extra coverage per code review requirements ---
 
