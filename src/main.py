@@ -6,7 +6,6 @@ from src.notion_writer import NOTION_PARENT_ID, build_page_payload
 from src.telegram_notify import build_summary, send as send_telegram
 
 MIN_PAIRS_PER_TF = 2
-MIN_TFS_REQUIRED = 2
 ATR_CLUSTER_MULTIPLIER = 0.25
 MAX_EXTENSION_DISTANCE_PCT = 0.15
 
