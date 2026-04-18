@@ -41,10 +41,16 @@ def analyze_structure(
         return StructureState(bias="range", last_bos=None, last_choch=None,
                               invalidation_level=None)
 
-    hh_seq = all(highs[i][1] > highs[i - 1][1] for i in range(1, len(highs)))
-    ll_seq = all(lows[i][1]  < lows[i - 1][1]  for i in range(1, len(lows)))
-    hl_seq = all(lows[i][1]  > lows[i - 1][1]  for i in range(1, len(lows)))
-    lh_seq = all(highs[i][1] < highs[i - 1][1] for i in range(1, len(highs)))
+    # Bias reflects the MOST RECENT swing — not history-wide monotonicity.
+    # Classic SMC: structure is bullish when the last HH > prior HH AND the
+    # last HL > prior HL. Older pivots are historical; one stale outlier from
+    # 3 swings ago shouldn't void a current trend shift. Using only the last
+    # two pivots keeps MS responsive to the actual market state and makes it
+    # fire as intended (otherwise range dominates on noisy real data).
+    hh_seq = highs[-1][1] > highs[-2][1]
+    ll_seq = lows[-1][1]  < lows[-2][1]
+    hl_seq = lows[-1][1]  > lows[-2][1]
+    lh_seq = highs[-1][1] < highs[-2][1]
 
     if hh_seq and hl_seq:
         bias = "bullish"
