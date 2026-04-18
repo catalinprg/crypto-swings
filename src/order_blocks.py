@@ -15,6 +15,11 @@ Lifecycle:
 
 OB range = the precursor candle's [low, high].
 
+NOTE: age_bars is measured from the OB candle (ob_idx), not from the
+displacement bar. This differs from fvg.py, which measures from i+1 (the
+completing bar of the 3-bar window). Task 8 consumers should be aware
+when comparing ages across sources.
+
 Output from this module feeds Task 8 adapters that convert unmitigated
 Order Blocks into Level objects for unified confluence clustering.
 """
@@ -27,6 +32,8 @@ from src.types import OHLC, Timeframe
 DISPLACEMENT_ATR_MULT: float = 1.5
 
 # Number of bars looked back to find the prior swing high/low.
+# NOTE: Fixed across TFs. On 1w/1M this spans months; consider TF-scaled
+# lookback in Task 9 when wiring per-TF config.
 PRIOR_SWING_LOOKBACK: int = 20
 
 # Default age threshold (bars) beyond which an unmitigated OB is flagged stale.
