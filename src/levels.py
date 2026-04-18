@@ -18,11 +18,17 @@ SOURCE_FAMILY: dict[str, str] = {
     "LIQ_BSL": "LIQ", "LIQ_SSL": "LIQ",
     "POC": "VP", "VAH": "VP", "VAL": "VP", "HVN": "VP", "LVN": "VP",
     "NAKED_POC_D": "NAKED_POC", "NAKED_POC_W": "NAKED_POC", "NAKED_POC_M": "NAKED_POC",
+    # All AVWAP variants collapse to ONE family. Bands are ±σ derivatives of
+    # the same VWAP line; swing/event anchors are just different anchor points
+    # on the same construct. Counting them as independent families inflated
+    # zone classification and squeezed out the structural_pivot signal (MS +
+    # exactly 1 other family). Individual source tags stay visible in the
+    # sources list so the analyst can still cite "AVWAP_BAND_2SD_DOWN" etc.
     "AVWAP_SESSION": "AVWAP", "AVWAP_WEEK": "AVWAP", "AVWAP_MONTH": "AVWAP",
-    "AVWAP_SWING_HH": "AVWAP_SWING", "AVWAP_SWING_LL": "AVWAP_SWING",
-    "AVWAP_EVENT": "AVWAP_EVENT",
-    "AVWAP_BAND_1SD_UP": "AVWAP_BAND", "AVWAP_BAND_1SD_DOWN": "AVWAP_BAND",
-    "AVWAP_BAND_2SD_UP": "AVWAP_BAND", "AVWAP_BAND_2SD_DOWN": "AVWAP_BAND",
+    "AVWAP_SWING_HH": "AVWAP", "AVWAP_SWING_LL": "AVWAP",
+    "AVWAP_EVENT": "AVWAP",
+    "AVWAP_BAND_1SD_UP": "AVWAP", "AVWAP_BAND_1SD_DOWN": "AVWAP",
+    "AVWAP_BAND_2SD_UP": "AVWAP", "AVWAP_BAND_2SD_DOWN": "AVWAP",
     "FVG_BULL": "FVG", "FVG_BEAR": "FVG",
     "OB_BULL": "OB", "OB_BEAR": "OB",
     "MS_BOS_LEVEL": "MS", "MS_CHOCH_LEVEL": "MS", "MS_INVALIDATION": "MS",

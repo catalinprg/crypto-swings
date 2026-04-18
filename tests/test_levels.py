@@ -59,3 +59,25 @@ def test_cluster_structural_pivot_classification():
     zones = cluster_levels(levels, radius=0.5)
     assert len(zones) == 1
     assert zones[0].classification == "structural_pivot"
+
+
+def test_all_avwap_variants_count_as_one_family():
+    """Regression: AVWAP bands, swing-anchors, and event-anchors were
+    previously split into 4 separate families, inflating zone classification
+    and squeezing out the structural_pivot signal. All AVWAP_* tags must
+    collapse to a single family."""
+    # MS + every AVWAP variant — only 2 distinct families (MS + AVWAP),
+    # so classification MUST be structural_pivot, not strong.
+    levels = [
+        _lvl(100.0, "MS_BOS_LEVEL",        tf="1d"),
+        _lvl(100.1, "AVWAP_SESSION",       tf="1d"),
+        _lvl(100.1, "AVWAP_WEEK",          tf="1d"),
+        _lvl(100.1, "AVWAP_SWING_HH",      tf="1d"),
+        _lvl(100.1, "AVWAP_BAND_1SD_UP",   tf="1d"),
+        _lvl(100.1, "AVWAP_BAND_2SD_DOWN", tf="1d"),
+        _lvl(100.1, "AVWAP_EVENT",         tf="1d"),
+    ]
+    zones = cluster_levels(levels, radius=0.5)
+    assert len(zones) == 1
+    assert zones[0].source_count == 2  # MS + AVWAP, that's it
+    assert zones[0].classification == "structural_pivot"
