@@ -33,10 +33,14 @@ MAX_LEVEL_DISTANCE_PCT = 0.20   # drop far-away levels before clustering
 MAX_ZONES_PER_SIDE = 10         # cap payload size
 
 
-async def _aggregated_per_tf(symbol: str, binance_ohlc: dict) -> dict:
+async def _aggregated_per_tf(symbol: str, binance_ohlc: dict) -> tuple[dict, list[str]]:
     """For each TF: fetch Bybit + Coinbase bars and aggregate with Binance.
-    Returns dict[Timeframe, list[OHLC]] of aggregated bars."""
+    Returns (agg_ohlc, venues_used_union) — venues_used reflects actual
+    non-empty coverage across any TF, not a hardcoded list."""
     agg: dict = {}
+    venues_seen: set[str] = set()
+    if any(binance_ohlc.values()):
+        venues_seen.add("binance")
     for tf, binance_bars in binance_ohlc.items():
         others = await fetch_all_venues(symbol, tf, limit=len(binance_bars))
         agg[tf] = aggregate_bars({
@@ -44,7 +48,11 @@ async def _aggregated_per_tf(symbol: str, binance_ohlc: dict) -> dict:
             "bybit":    others["bybit"],
             "coinbase": others["coinbase"],
         })
-    return agg
+        if others["bybit"]:
+            venues_seen.add("bybit")
+        if others["coinbase"]:
+            venues_seen.add("coinbase")
+    return agg, sorted(venues_seen)
 
 
 async def build() -> dict:
@@ -80,14 +88,15 @@ async def build() -> dict:
     )
 
     # --- Aggregated OHLCV for VP / AVWAP only
-    agg_ohlc = await _aggregated_per_tf(CONFIG.symbol, ohlc)
+    agg_ohlc, venues_used = await _aggregated_per_tf(CONFIG.symbol, ohlc)
 
     # --- Volume Profile per TF (on aggregated bars)
     vp_by_tf: dict = {}
     for tf, bars in agg_ohlc.items():
-        tf_atr = _latest(atr(bars, 14))
-        if tf_atr is None:
-            continue
+        try:
+            tf_atr = _latest(atr(bars, 14))
+        except RuntimeError:
+            continue   # insufficient bars for ATR; skip this TF
         vp_by_tf[tf] = compute_profile(bars, atr_14=tf_atr)
 
     # --- Naked POCs (daily / weekly / monthly) on aggregated 1h bars
@@ -115,13 +124,17 @@ async def build() -> dict:
     ob_by_tf: dict = {}
     ms_by_tf: dict = {}
     for tf, bars in ohlc.items():
-        tf_atr = _latest(atr(bars, 14))
-        if tf_atr is None:
+        # MS first — doesn't depend on ATR (detect_pivots computes its own).
+        highs, lows = detect_pivots(bars, n=None)
+        ms_by_tf[tf] = analyze_structure(highs, lows, current_price=current_price)
+
+        # FVG + OB need ATR; skip if series too short.
+        try:
+            tf_atr = _latest(atr(bars, 14))
+        except RuntimeError:
             continue
         fvg_by_tf[tf] = detect_fvgs(bars, tf=tf, atr_14=tf_atr)
         ob_by_tf[tf]  = detect_order_blocks(bars, tf=tf, atr_14=tf_atr)
-        highs, lows = detect_pivots(bars, n=None)
-        ms_by_tf[tf] = analyze_structure(highs, lows, current_price=current_price)
 
     # --- Unified level list
     levels = fibs_to_levels(fibs)
@@ -206,7 +219,7 @@ async def build() -> dict:
             ]
             for period, lst in naked_pocs.items()
         },
-        "venue_sources": ["binance", "bybit", "coinbase"],
+        "venue_sources": venues_used,
     }
 
 
