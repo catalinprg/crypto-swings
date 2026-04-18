@@ -56,15 +56,40 @@ def test_bearish_mirror_choch():
     assert state.last_bos is not None
 
 
-def test_range_mixed_pivots():
-    # Highs: up then down (not clean HH or LH sequence) → range
-    pivots_highs = [(1, 100.0), (3, 110.0), (5, 105.0)]
+def test_range_expanding_volatility():
+    # Last 2 highs: HH (100 → 110). Last 2 lows: LL (90 → 88).
+    # Expanding range — neither clean bullish (needs HL) nor bearish (needs LH) → range.
+    pivots_highs = [(1, 100.0), (3, 110.0)]
     pivots_lows  = [(2, 90.0),  (4, 88.0)]
     state = analyze_structure(pivots_highs, pivots_lows, current_price=103.0)
     assert state.bias == "range"
     assert state.last_bos is None
     assert state.last_choch is None
     assert state.invalidation_level is None
+
+
+def test_range_compressing_wedge():
+    # Last 2 highs: LH (110 → 105). Last 2 lows: HL (90 → 95).
+    # Compressing wedge — neither bullish nor bearish → range.
+    pivots_highs = [(1, 110.0), (3, 105.0)]
+    pivots_lows  = [(2, 90.0),  (4, 95.0)]
+    state = analyze_structure(pivots_highs, pivots_lows, current_price=100.0)
+    assert state.bias == "range"
+
+
+def test_last_two_pivots_override_historical_outlier():
+    """Regression: bias should reflect the MOST RECENT swing, not history-wide
+    monotonicity. An old outlier pivot must not void a current trend shift."""
+    # Highs: outlier at 105, then 100, then 110. Last 2: 100→110 (HH).
+    # Lows: 95 → 102 (HL).
+    # Should be bullish despite the non-monotonic high sequence.
+    pivots_highs = [(1, 105.0), (3, 100.0), (5, 110.0)]
+    pivots_lows  = [(2, 95.0),  (4, 102.0)]
+    state = analyze_structure(pivots_highs, pivots_lows, current_price=108.0)
+    assert state.bias == "bullish"
+    assert state.last_bos is not None
+    assert state.last_bos["level"] == 110.0   # most recent HH
+    assert state.invalidation_level == 102.0  # most recent HL
 
 
 def test_insufficient_pivots_returns_range():
