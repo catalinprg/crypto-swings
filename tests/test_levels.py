@@ -61,6 +61,50 @@ def test_cluster_structural_pivot_classification():
     assert zones[0].classification == "structural_pivot"
 
 
+def test_sort_sources_by_priority_puts_ms_and_fib_first():
+    """Regression: alphabetical sort put AVWAP_BAND_* ahead of MS/FIB
+    (A < F < M), crowding out load-bearing tags in the briefing's top-4
+    truncation. Priority sort must put MS first, then FIB, then LIQ/FVG/OB,
+    then NAKED_POC, then VP, then AVWAP."""
+    from src.levels import sort_sources_by_priority
+    mixed = [
+        "AVWAP_BAND_1SD_UP", "AVWAP_BAND_2SD_DOWN", "AVWAP_SESSION",
+        "FIB_618", "FIB_500",
+        "LIQ_BSL",
+        "FVG_BEAR",
+        "OB_BULL",
+        "NAKED_POC_W",
+        "POC",
+        "MS_BOS_LEVEL",
+    ]
+    out = sort_sources_by_priority(mixed)
+    assert out[0] == "MS_BOS_LEVEL"
+    assert out[1:3] == ["FIB_500", "FIB_618"]
+    assert out[3] == "LIQ_BSL"
+    assert out[4] == "FVG_BEAR"
+    assert out[5] == "OB_BULL"
+    assert out[6] == "NAKED_POC_W"
+    assert out[7] == "POC"
+    # AVWAP variants at the tail
+    assert set(out[-3:]) == {"AVWAP_BAND_1SD_UP", "AVWAP_BAND_2SD_DOWN", "AVWAP_SESSION"}
+
+
+def test_sort_sources_top4_preserves_structural_tags():
+    """Briefing truncates to top-4 sources. With priority sort, even a
+    zone dominated by AVWAP bands must still show MS/FIB in the top-4."""
+    from src.levels import sort_sources_by_priority
+    zone_sources = [
+        "AVWAP_BAND_1SD_DOWN", "AVWAP_BAND_1SD_UP",
+        "AVWAP_BAND_2SD_DOWN", "AVWAP_BAND_2SD_UP",
+        "AVWAP_SESSION", "AVWAP_SWING_HH",
+        "MS_BOS_LEVEL", "FIB_618", "LIQ_BSL",
+    ]
+    top4 = sort_sources_by_priority(zone_sources)[:4]
+    assert "MS_BOS_LEVEL" in top4
+    assert "FIB_618" in top4
+    assert "LIQ_BSL" in top4
+
+
 def test_all_avwap_variants_count_as_one_family():
     """Regression: AVWAP bands, swing-anchors, and event-anchors were
     previously split into 4 separate families, inflating zone classification
