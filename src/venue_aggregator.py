@@ -19,9 +19,9 @@ Coinbase supports granularities {60, 300, 900, 3600, 21600, 86400}s —
 """
 from __future__ import annotations
 import asyncio
+import sys
 import httpx
 from collections import defaultdict
-from typing import Iterable
 
 from src.types import OHLC, Timeframe
 
@@ -58,7 +58,12 @@ def aggregate_bars(
 ) -> list[OHLC]:
     """Merge per-venue bars by timestamp. Volume SUMMED. OHLC taken from
     `primary` when present, otherwise from the first venue that has a bar
-    at that timestamp (stable preference order)."""
+    at that timestamp (stable preference order).
+
+    Window alignment is the caller's responsibility; timestamps present in
+    only one venue are included with that venue as the OHLC reference.
+    `taker_buy_volume` is taken from the primary ref only — `None` when the
+    primary is absent for that timestamp."""
     buckets: dict[int, dict[str, OHLC]] = defaultdict(dict)
     for venue, bars in by_venue.items():
         for b in bars:
@@ -111,15 +116,18 @@ async def fetch_bybit(
                 volume=float(row[5]),
             ))
         return out
-    except (httpx.HTTPError, ValueError, KeyError, IndexError):
+    except (httpx.HTTPError, httpx.TimeoutException, ValueError, KeyError, IndexError) as e:
+        print(f"bybit fetch failed ({symbol} {tf}): {e}", file=sys.stderr)
         return []
 
 
 async def fetch_coinbase_native(
-    client: httpx.AsyncClient, product: str, granularity: int, limit: int = 300
+    client: httpx.AsyncClient, product: str, granularity: int
 ) -> list[OHLC]:
     """Coinbase exchange candles. Returns [[ts, low, high, open, close, vol], ...].
-    Response is newest-first. Limit capped at 300 per request."""
+    Response is newest-first. The caller cannot control the returned-bar count —
+    the Coinbase endpoint ignores any limit parameter and returns its full native
+    window (up to ~300 rows) regardless."""
     try:
         r = await client.get(
             COINBASE_URL.format(product=product),
@@ -138,7 +146,8 @@ async def fetch_coinbase_native(
                 volume=float(row[5]),
             ))
         return out
-    except (httpx.HTTPError, ValueError, IndexError):
+    except (httpx.HTTPError, httpx.TimeoutException, ValueError, IndexError) as e:
+        print(f"coinbase fetch failed ({product} g={granularity}): {e}", file=sys.stderr)
         return []
 
 
