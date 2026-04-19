@@ -154,6 +154,7 @@ The payload at `data/payload.json` has this shape:
 
 - **The briefing is fully Romanian.** Headings, bullet prefixes, prose — everything.
 - **Technical identifiers stay as-is** (names, not vocabulary): `ATR`, `OI`, `fib`, `Fibonacci`, ratio numbers (`0.5`, `0.618`, `0.786`, `1.618`), timeframe tags (`1M`, `1w`, `1d`, `4h`, `1h`), and currency codes (`USD`, `USDT`).
+- **Payload source identifiers (raw uppercase tags) MUST be translated** per the "Rendering source tags" table below. Never emit `FIB_618`, `MS_BOS_LEVEL`, `LIQ_BSL`, `FVG_BULL`, `NAKED_POC_W`, `BSL-pool`, `long-liq`, or similar raw tags in the final briefing.
 - **Prices use `$` prefix and comma thousands separators** — magnitude-adaptive. For BTC-scale numbers use patterns like `$75,806` or `$75.8k`. For ETH-scale numbers use patterns like `$3,510` or `$3.51k`. Let the payload's actual `current_price` magnitude guide the style — if prices are in the thousands, comma-separate; if many digits, `k`-round is cleaner.
 - Use proper Romanian diacritics: `ă`, `â`, `î`, `ș`, `ț`.
 - Hedging vocabulary: *poate, pare, ar putea, probabil, sugerează*. Never state directional conviction as fact.
@@ -167,8 +168,8 @@ The briefing opens with the **Preț curent** line, then a short **Context struct
 
 One short Romanian line per TF where `market_structure[tf]` exists, in order **1M → 1w → 1d → 4h → 1h**. The pipeline has already computed bias + last BOS/CHoCH — just read and render.
 
-- `- **{tf}** — {bullish|bearish} (ultima {BOS|CHoCH}: {bullish|bearish} la ${level}). Invalidare: ${invalidation}.`
-- For `bias == "range"`: `- **{tf}** — range (fără BOS/CHoCH recent).`
+- `- **{tf}** — {bullish|bearish} (ultimul {break of structure|change of character}: {bullish|bearish} la ${level}). Invalidare: ${invalidation}.`
+- For `bias == "range"`: `- **{tf}** — range (fără break of structure / change of character recent).`
 - **Skip `range` TFs by default** UNLESS they contradict a higher TF — in that case keep the range line AND mention the contradiction in Pe scurt.
 - Pick the more recent of `last_bos` / `last_choch` for the parenthetical; if both are null, omit the parenthetical and say only `- **{tf}** — {bias}.`
 - Omit `Invalidare: …` when `invalidation_level` is null.
@@ -185,7 +186,7 @@ One paragraph, **2–4 hedged Romanian sentences**, that tells the reader what j
   - `open_interest_change_24h_pct` past ±5% (skip silently when null).
   - Clearly dominant-side 24h liquidations (use `liquidations_24h`; `liquidations_72h` available for persistence).
   - A strong `spot_taker_delta_by_tf` reading on 1h or 4h: |delta_pct| > 15 (e.g. "taker buying dominant pe 4h în timp ce prețul testează rezistența").
-- **Optional — naked POC magnet.** If a `naked_pocs.D/W/M` entry sits within **2 × daily_atr** of current_price and above/below price, one short sentence is allowed (magnet framing: "*un naked POC W la $X ar putea acționa ca magnet peste/sub*"). Skip otherwise.
+- **Optional — magnet POC netestat.** If a `naked_pocs.D/W/M` entry sits within **2 × daily_atr** of current_price and above/below price, one short sentence is allowed (magnet framing: "*un POC W netestat la $X ar putea acționa ca magnet peste/sub*"). Skip otherwise.
 - **Optional — venue coverage.** If `venue_sources` is degraded (single venue, e.g. `["binance"]`), one short note: "*acoperire VP/AVWAP pe un singur venue — nivelele de echilibru sunt mai puțin robuste*". Skip when coverage is full.
 
 Never cite a field that is null (check `derivatives.missing_sections` on partial outages). If nothing in derivatives stands out, skip it — don't fill with "poziționarea pare neutră". Hedged language only (*poate, pare, ar putea, probabil, sugerează*). **Hard limit: 4 sentences.**
@@ -203,6 +204,63 @@ Each zone carries a `classification` from the pipeline. **Read it, do not recomp
 
 **Do NOT fabricate.** Do NOT downgrade or upgrade based on derivatives — mention derivatives separately in Pe scurt. The old Pass-2 tier-shift is removed.
 
+### Rendering source tags (human-readable)
+
+The payload uses compact uppercase identifiers for source tags (`FIB_618`, `MS_BOS_LEVEL`, `LIQ_BSL`, etc.). **Never emit those raw identifiers in the briefing.** Translate every tag per the tables below so a reader new to trading jargon can still follow along. Fib ratios stay as short labels (`fib 61.8%`); all other tags get a full Romanian/clear-English form.
+
+**Zone source tags (from the `sources` list):**
+
+| Payload tag | Render as |
+|---|---|
+| `FIB_236` | `fib 23.6%` |
+| `FIB_382` | `fib 38.2%` |
+| `FIB_500` | `fib 50%` |
+| `FIB_618` | `fib 61.8%` |
+| `FIB_786` | `fib 78.6%` |
+| `FIB_1272` | `fib 127.2%` |
+| `FIB_1618` | `fib 161.8%` |
+| `POC` | `volum maxim (POC)` |
+| `VAH` | `maxim zonă valoare` |
+| `VAL` | `minim zonă valoare` |
+| `HVN` | `volum ridicat` |
+| `LVN` | `volum scăzut` |
+| `AVWAP_WEEK` | `AVWAP săptămânal` |
+| `AVWAP_MONTH` | `AVWAP lunar` |
+| `AVWAP_BAND_2SD_UP` | `bandă superioară AVWAP` |
+| `AVWAP_BAND_2SD_DOWN` | `bandă inferioară AVWAP` |
+| `LIQ_BSL` | `lichiditate buy-side` |
+| `LIQ_SSL` | `lichiditate sell-side` |
+| `FVG_BULL` | `fair-value gap bullish` |
+| `FVG_BEAR` | `fair-value gap bearish` |
+| `OB_BULL` | `order block bullish` |
+| `OB_BEAR` | `order block bearish` |
+| `MS_BOS_LEVEL` (+ direction, tf) | `break of structure {bullish\|bearish} (tf)` |
+| `MS_CHOCH_LEVEL` (+ direction, tf) | `change of character {bullish\|bearish} (tf)` |
+| `NAKED_POC` | `POC netestat` |
+| `NAKED_POC_D` | `POC D netestat` |
+| `NAKED_POC_W` | `POC W netestat` |
+| `NAKED_POC_M` | `POC M netestat` |
+
+TF annotation (`(1d)`, `(4h)`, etc.) follows the rendered label per the Zone bullets rules.
+
+**Pool / liquidation prose tags (appended to zone bullets or standalone pool bullets):**
+
+| Raw form | Render as |
+|---|---|
+| `BSL-pool ~Nh` (zone overlap) | `pool lichiditate buy-side ~Nh` |
+| `SSL-pool ~Nh` (zone overlap) | `pool lichiditate sell-side ~Nh` |
+| `BSL-pool Nx 1w+1d` | `pool lichiditate buy-side Nx 1w+1d` |
+| `SSL-pool Nx 1w+1d` | `pool lichiditate sell-side Nx 1w+1d` |
+| `long-liq ~Nh` | `lichidări long ~Nh` |
+| `short-liq ~Nh` | `lichidări short ~Nh` |
+| `liq ~Nh` (neutral side) | `lichidări ~Nh` |
+| `BSL unswept` (standalone pool) | `lichiditate buy-side neatinsă` |
+| `SSL unswept` (standalone pool) | `lichiditate sell-side neatinsă` |
+| `(swept)` | `(atinsă)` |
+| `Nx touches` | `Nx atingeri` |
+
+**Context structural / Pe scurt / De urmărit prose:** MS abbreviations render the same way — write out `break of structure` or `change of character` instead of `BOS` / `CHoCH`. Example: `(ultimul break of structure: bullish la $76,038)`, or `o închidere 4h deasupra $76,038 (break of structure pe 4h) ar putea...`.
+
 ### Zone bullets (Rezistență + Suport)
 
 Up to **4 zones per side**, ordered by distance from current price (nearest first). Format:
@@ -214,14 +272,14 @@ Up to **4 zones per side**, ordered by distance from current price (nearest firs
 Rules:
 
 - `{label}` comes straight from the classification table above. For `level`-class zones that survived the fallback (see below), omit the label portion and write only `— {sources}`.
-- Render sources from the zone's `sources` list. Keep tags **English, as-is** (`FIB_618`, `POC`, `AVWAP_WEEK`, `LIQ_BSL`, `LIQ_SSL`, `FVG_BULL`, `OB_BEAR`, `MS_BOS_LEVEL`, `MS_CHOCH_LEVEL`, `NAKED_POC`, `VAH`, `VAL`, `HVN`, `LVN`, etc.).
-- If a FIB or VP/AVWAP source has a clean single TF in `contributing_levels`, annotate it: `FIB_618 (1d)`, `POC (1d)`, `FVG_BULL (4h)`. Annotate TF only when it adds signal — skip for AVWAP_WEEK / AVWAP_MONTH.
-- When `sources` contains `MS_BOS_LEVEL` or `MS_CHOCH_LEVEL`, append the direction from the corresponding `contributing_levels[*].meta.direction` and its TF: `MS_BOS_LEVEL bullish (4h)`, `MS_CHOCH_LEVEL bearish (1d)`.
+- Render sources from the zone's `sources` list per the "Rendering source tags" tables above. **Never emit raw payload identifiers** (e.g. `FIB_618`, `MS_BOS_LEVEL`, `LIQ_BSL`, `NAKED_POC`) in bullets or prose.
+- If a FIB or VP/AVWAP source has a clean single TF in `contributing_levels`, annotate the rendered label: `fib 61.8% (1d)`, `volum maxim (POC) (1d)`, `fair-value gap bullish (4h)`. Annotate TF only when it adds signal — skip for `AVWAP săptămânal` / `AVWAP lunar`.
+- When `sources` contains `MS_BOS_LEVEL` or `MS_CHOCH_LEVEL`, render as `break of structure {bullish|bearish} (tf)` or `change of character {bullish|bearish} (tf)` using `contributing_levels[*].meta.direction` and its TF.
 - Cap the source list at 4 tags. If more exist, pick the highest-TF and most structurally-significant (MS > FIB/LIQ/NAKED_POC > POC/AVWAP > FVG/OB > VAH/VAL/HVN/LVN).
 - Drop any zone with `abs(distance_pct) > 20` (pipeline already filters, but belt-and-suspenders).
 - **Drop `classification == "level"` zones** unless fewer than 2 zones remain on that side — in that case, include the top single-source zone(s) as fallback to keep the section populated.
 - If a zone contains the current price (`min_price <= current_price <= max_price`), place it first in Suport with `[zona curentă]` instead of a percentage: `- **[zona curentă] $MIN–$MAX** — {label} · {sources}`.
-- Pool-overlap tags (`· BSL-pool ~Nh`, `· SSL-pool 3× 1w+1d`) and per-zone liquidation-cluster tags (`· long-liq ~28h`) still apply per the sections below — append them AFTER the sources block.
+- Pool-overlap tags (`· pool lichiditate buy-side ~Nh`, `· pool lichiditate sell-side 3× 1w+1d`) and per-zone liquidation-cluster tags (`· lichidări long ~28h`) still apply per the sections below — append them AFTER the sources block.
 
 If fewer than 2 zones are in range on a side (after all filters), write instead: `Structura de {rezistență|suport} este subțire în intervalul relevant.`
 
@@ -244,21 +302,21 @@ The `liquidity` section of the payload lists stop-cluster proxies derived from s
 This is a **second, orthogonal signal** — do NOT merge it into the `confluență` label. That label stays reserved for structural fib agreement. Liquidity gets its own treatment:
 
 **1. Pool overlaps a fib zone** (pool `price` is inside a listed Rezistență/Suport zone's `min_price`–`max_price`, OR within one `daily_atr` of it):
-- Append a compact tag to that zone's bullet, AFTER any `long-liq`/`short-liq` tag.
-- Format: `· BSL-pool ~Nh` (for buy-side) or `· SSL-pool ~Nh`.
-- If the pool's `swept == true`, append `(swept)` — it's still worth mentioning as a reference level but weakens the pull.
-- Stack with touches when interesting: `· BSL-pool 3× 1w+1d` when `touches >= 3` and a high-TF is present. Keep tags short.
+- Append a compact tag to that zone's bullet, AFTER any `lichidări long`/`lichidări short` tag.
+- Format: `· pool lichiditate buy-side ~Nh` or `· pool lichiditate sell-side ~Nh`.
+- If the pool's `swept == true`, append `(atinsă)` — it's still worth mentioning as a reference level but weakens the pull.
+- Stack with touches when interesting: `· pool lichiditate buy-side 3× 1w+1d` when `touches >= 3` and a high-TF is present. Keep tags short.
 
 **2. Pool sits alone in dead space** (no fib zone within `daily_atr`, and `swept == false`, and in the top 2 of its side by `strength_score`):
 - Emit under a `### Zone de liquidity` section after Suport and before De urmărit.
-- Format: `- **$X** (±X.X%) — BSL unswept · 1w+1d · Nx touches · ~Nh`.
+- Format: `- **$X** (±X.X%) — lichiditate buy-side neatinsă · 1w+1d · Nx atingeri · ~Nh` (or `lichiditate sell-side neatinsă` for SSL).
 - Use **magnet language**, not S/R language. In Pe scurt or De urmărit, phrase as *"zona de liquidity de la $X poate atrage prețul ca țintă"* — never *"suport puternic"*.
 - Skip pools with `swept == true` from this section — they've already delivered their magnetism.
 
 **2b. Unmitigated naked POCs** (from `naked_pocs.D/W/M`): add to the same `### Zone de liquidity` section any naked POC that is NOT already inside an already-listed Rezistență/Suport zone (`min_price`–`max_price`). Format:
 
 ```
-- **${price}** ({±X.X}%) — naked POC {D|W|M} · {age_days}d
+- **${price}** ({±X.X}%) — POC {D|W|M} netestat · {age_days}d
 ```
 
 - `age_days = round((now - period_end_ts) / 86400)` (period_end_ts is Unix seconds).
@@ -281,12 +339,12 @@ This is a **second, orthogonal signal** — do NOT merge it into the `confluenț
 
 When a 72h liquidation cluster's price range (`price_low`–`price_high`) overlaps or sits immediately adjacent to a zone's `min_price`–`max_price`, append a compact tag to that bullet (AFTER the sources block):
 
-- **$X–$Y** (−X.X%) — confluență medie · FIB_500 (1d), LIQ_SSL · long-liq ~28h
-- **$X–$Y** (+X.X%) — pivot structural · MS_BOS_LEVEL bullish (4h), LIQ_BSL · short-liq ~12h
+- **$X–$Y** (−X.X%) — confluență medie · fib 50% (1d), lichiditate sell-side · lichidări long ~28h
+- **$X–$Y** (+X.X%) — pivot structural · break of structure bullish (4h), lichiditate buy-side · lichidări short ~12h
 
 Rules:
 
-- Tag prefix: `long-liq` or `short-liq` based on the cluster's `dominant_side`. If `dominant_side == "neutral"`, use `liq`.
+- Tag prefix: `lichidări long` or `lichidări short` based on the cluster's `dominant_side`. If `dominant_side == "neutral"`, use `lichidări`.
 - `~Nh`: age of the cluster — `round((now - t) / 3600)` where `t` is Unix seconds from the payload. Use `now` = the moment you write the briefing.
 - Tag **only one** cluster per zone — the most recent one that overlaps.
 - If `price_high` / `price_low` are `null` (cluster older than 4h fetch window), skip — do not fabricate overlap.
@@ -309,26 +367,26 @@ The `data/briefing.md` file content should follow this exact structure:
 
 ### Context structural
 
-- **1M** — bullish (ultima BOS: bullish la $74,508). Invalidare: $68,200.
-- **1w** — range (fără BOS/CHoCH recent).
-- **1d** — range (fără BOS/CHoCH recent).
+- **1M** — bullish (ultimul break of structure: bullish la $74,508). Invalidare: $68,200.
+- **1w** — range (fără break of structure / change of character recent).
+- **1d** — range (fără break of structure / change of character recent).
 
-**Pe scurt:** O mișcare de aproape 1 ATR în ultimele 24h aduce prețul aproape de zona de echilibru de la $78,962–$79,457. Structura rămâne bullish pe 1M, dar pe timeframe-urile medii piața pare să consolideze. Finanțarea ridicată pe Bybit (~+18% anualizat) sugerează poziționare aglomerată pe long. Un naked POC W la $68,200 ar putea acționa ca magnet dacă structura se rupe.
+**Pe scurt:** O mișcare de aproape 1 ATR în ultimele 24h aduce prețul aproape de zona de echilibru de la $78,962–$79,457. Structura rămâne bullish pe 1M, dar pe timeframe-urile medii piața pare să consolideze. Finanțarea ridicată pe Bybit (~+18% anualizat) sugerează poziționare aglomerată pe long. Un POC W netestat la $68,200 ar putea acționa ca magnet dacă structura se rupe.
 
 ### Rezistență
 
-- **$78,962–$79,457** (+4.39%) — confluență puternică · FIB_618 (1d), POC (1d), AVWAP_WEEK
-- **$80,500–$80,900** (+6.42%) — pivot structural · MS_BOS_LEVEL bullish (4h), LIQ_BSL · long-liq ~8h
+- **$78,962–$79,457** (+4.39%) — confluență puternică · fib 61.8% (1d), volum maxim (POC) (1d), AVWAP săptămânal
+- **$80,500–$80,900** (+6.42%) — pivot structural · break of structure bullish (4h), lichiditate buy-side · lichidări long ~8h
 
 ### Suport
 
-- **$73,800–$74,200** (−2.41%) — confluență medie · FIB_500 (1d), LIQ_SSL · SSL-pool 2× 1w+1d
-- **$72,000–$72,400** (−4.82%) — pivot structural · MS_CHOCH_LEVEL bearish (4h), FVG_BULL (4h), OB_BULL (4h)
+- **$73,800–$74,200** (−2.41%) — confluență medie · fib 50% (1d), lichiditate sell-side · pool lichiditate sell-side 2× 1w+1d
+- **$72,000–$72,400** (−4.82%) — pivot structural · change of character bearish (4h), fair-value gap bullish (4h), order block bullish (4h)
 
 ### Zone de liquidity   ← only when standalone pools / naked POCs exist; omit otherwise
 
-- **$68,200** (−9.84%) — naked POC W · 14d
-- **$82,500** (+9.06%) — BSL unswept · 1w+1d · 2× touches · ~40h
+- **$68,200** (−9.84%) — POC W netestat · 14d
+- **$82,500** (+9.06%) — lichiditate buy-side neatinsă · 1w+1d · 2× atingeri · ~40h
 
 ### De urmărit
 
